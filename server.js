@@ -22,7 +22,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // 4. 요청 로깅 미들웨어 (직접 구현)
 app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    if (req.path.startsWith('/api')) {
+        console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    }
     next();
 });
 
@@ -131,6 +133,37 @@ app.get('/api/todos', (req, res) => {
     }
 });
 
+// 🎯 통계 API
+app.get('/api/todos/stats', (req, res) => {
+    try {
+        const total = todos.length;
+        const completed = todos.filter(t => t.completed).length;
+        const active = total - completed;
+        const byPriority = {
+            high: todos.filter(t => t.priority === 'high').length,
+            medium: todos.filter(t => t.priority === 'medium').length,
+            low: todos.filter(t => t.priority === 'low').length
+        };
+
+        res.json({
+            success: true,
+            data: {
+                total,
+                completed,
+                active,
+                completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+                byPriority
+            }
+        });
+    } catch (error) {
+        console.error('통계 조회 오류:', error);
+        res.status(500).json({
+            success: false,
+            message: '통계를 조회하는 중 오류가 발생했습니다.'
+        });
+    }
+});
+
 // 2. 특정 할 일 조회 (GET /api/todos/:id)
 app.get('/api/todos/:id', (req, res) => {
     try {
@@ -216,7 +249,7 @@ app.put('/api/todos/:id', (req, res) => {
         const id = parseInt(req.params.id);
         const { text, completed, priority } = req.body;
         
-        const todoIndex = todos.findIndex(t => t.id === id);
+        const todoIndex = todos.findIndex(todo => todo.id === id);
         
         if (todoIndex === -1) {
             return res.status(404).json({
@@ -339,39 +372,8 @@ app.delete('/api/todos', (req, res) => {
     }
 });
 
-// 🎯 통계 API
-app.get('/api/todos/stats', (req, res) => {
-    try {
-        const total = todos.length;
-        const completed = todos.filter(t => t.completed).length;
-        const active = total - completed;
-        const byPriority = {
-            high: todos.filter(t => t.priority === 'high').length,
-            medium: todos.filter(t => t.priority === 'medium').length,
-            low: todos.filter(t => t.priority === 'low').length
-        };
-
-        res.json({
-            success: true,
-            data: {
-                total,
-                completed,
-                active,
-                completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
-                byPriority
-            }
-        });
-    } catch (error) {
-        console.error('통계 조회 오류:', error);
-        res.status(500).json({
-            success: false,
-            message: '통계를 조회하는 중 오류가 발생했습니다.'
-        });
-    }
-});
-
 // 🎯 404 에러 핸들러
-app.use('/*error', (req, res) => {
+app.use((req, res) => {
     res.status(404).json({
         success: false,
         message: '요청하신 경로를 찾을 수 없습니다.',
